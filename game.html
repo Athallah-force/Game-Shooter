@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Shooter</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #000;
+    }
+    canvas {
+      border: 2px solid #fff;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="1024" height="768"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const gameState = {
+      player: { x: 50, y: canvas.height / 2, width: 20, height: 20, color: 'blue', character: 'triangle' },
+      enemy: { x: canvas.width - 70, y: canvas.height / 2, width: 50, height: 50, color: 'purple', speed: 3, direction: 1, bullets: [] },
+      bullets: [],
+      obstacles: [
+        { x: canvas.width / 2, y: canvas.height / 3, width: 30, height: 200, color: 'gray' },
+      ],
+      skor: 0,
+    };
+
+    const sounds = {
+      shoot: new Audio('https://example.com/shoot.mp3'),
+      hit: new Audio('https://example.com/hit.mp3'),
+    };
+
+    let keys = {};
+
+    function drawTriangle(x, y, size, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y - size / 2);
+      ctx.lineTo(x + size, y);
+      ctx.lineTo(x, y + size / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawRectangle(x, y, width, height, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, width, height);
+    }
+
+    function drawPolygon(x, y, radius, sides, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (let i = 0; i < sides; i++) {
+        const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+        const px = x + radius * Math.cos(angle);
+        const py = y + radius * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawBullet(x, y, radius, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawScore() {
+      ctx.fillStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.fillText(`Skor: ${gameState.skor}`, 10, 30);
+    }
+
+    function update() {
+      // Gerakan pemain
+      if (keys['ArrowUp']) gameState.player.y -= 5;
+      if (keys['ArrowDown']) gameState.player.y += 5;
+      gameState.player.y = Math.max(0, Math.min(canvas.height, gameState.player.y));
+
+      // Gerakan musuh
+      gameState.enemy.y += gameState.enemy.speed * gameState.enemy.direction;
+      if (gameState.enemy.y <= 0 || gameState.enemy.y >= canvas.height) {
+        gameState.enemy.direction *= -1;
+      }
+
+      // Tembakan musuh
+      if (Math.random() < 0.02) {
+        gameState.enemy.bullets.push({
+          x: gameState.enemy.x - 20,
+          y: gameState.enemy.y,
+          radius: 5,
+          color: 'yellow',
+          speed: -5,
+        });
+      }
+
+      // Gerakan peluru pemain
+      gameState.bullets.forEach((bullet, index) => {
+        bullet.x += bullet.speed;
+
+        // Periksa tabrakan dengan musuh
+        if (
+          bullet.x > gameState.enemy.x - gameState.enemy.width / 2 &&
+          bullet.x < gameState.enemy.x + gameState.enemy.width / 2 &&
+          bullet.y > gameState.enemy.y - gameState.enemy.height / 2 &&
+          bullet.y < gameState.enemy.y + gameState.enemy.height / 2
+        ) {
+          sounds.hit.play();
+          gameState.skor++;
+          gameState.bullets.splice(index, 1);
+        }
+
+        // Hapus peluru jika keluar layar
+        if (bullet.x > canvas.width) {
+          gameState.bullets.splice(index, 1);
+        }
+      });
+
+      // Gerakan peluru musuh
+      gameState.enemy.bullets.forEach((bullet, index) => {
+        bullet.x += bullet.speed;
+
+        // Periksa tabrakan dengan pemain
+        if (
+          bullet.x < gameState.player.x + gameState.player.width &&
+          bullet.y > gameState.player.y - gameState.player.height / 2 &&
+          bullet.y < gameState.player.y + gameState.player.height / 2
+        ) {
+          alert('Kena tembak!');
+          gameState.enemy.bullets.splice(index, 1);
+        }
+
+        // Hapus peluru jika keluar layar
+        if (bullet.x < 0) {
+          gameState.enemy.bullets.splice(index, 1);
+        }
+      });
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Gambar pemain
+      if (gameState.player.character === 'triangle') {
+        drawTriangle(gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.color);
+      } else {
+        drawRectangle(gameState.player.x, gameState.player.y - 10, 20, 20, gameState.player.color);
+      }
+
+      // Gambar musuh
+      drawPolygon(gameState.enemy.x, gameState.enemy.y, gameState.enemy.width / 2, 5, gameState.enemy.color);
+
+      // Gambar peluru pemain
+      gameState.bullets.forEach(bullet => drawBullet(bullet.x, bullet.y, bullet.radius, bullet.color));
+
+      // Gambar peluru musuh
+      gameState.enemy.bullets.forEach(bullet => drawBullet(bullet.x, bullet.y, bullet.radius, bullet.color));
+
+      // Gambar penghalang
+      gameState.obstacles.forEach(obstacle => drawRectangle(obstacle.x, obstacle.y, obstacle.width, obstacle.height, obstacle.color));
+
+      // Gambar skor
+      drawScore();
+    }
+
+    function gameLoop() {
+      update();
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
+      if (e.key === ' ') {
+        sounds.shoot.play();
+        gameState.bullets.push({
+          x: gameState.player.x + 20,
+          y: gameState.player.y,
+          radius: 5,
+          color: 'red',
+          speed: 8,
+        });
+      }
+      if (e.key === 'c') {
+        gameState.player.character = gameState.player.character === 'triangle' ? 'rectangle' : 'triangle';
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+
+    gameLoop();
+  </script>
+</body>
+</html>
