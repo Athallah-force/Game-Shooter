@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Game Shooter</title>
+  <title>Game Shooter Sederhana</title>
   <style>
     body {
-      margin: 0;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      background-color: #000;
+      margin: 0;
+      background-color: #f0f0f0;
     }
     canvas {
-      border: 2px solid #fff;
+      border: 2px solid #000;
     }
   </style>
 </head>
@@ -24,185 +24,130 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    const gameState = {
-      player: { x: 50, y: canvas.height / 2, width: 20, height: 20, color: 'blue', character: 'triangle' },
-      enemy: { x: canvas.width - 70, y: canvas.height / 2, width: 50, height: 50, color: 'purple', speed: 3, direction: 1, bullets: [] },
-      bullets: [],
-      obstacles: [
-        { x: canvas.width / 2, y: canvas.height / 3, width: 30, height: 200, color: 'gray' },
-      ],
-      skor: 0,
-    };
+    // Game variables
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const player = { x: 50, y: canvasHeight / 2, width: 100, height: 100, speed: 5, dy: 0, icon: new Image() };
+    const enemy = { x: canvasWidth - 80, y: canvasHeight / 2, size: 100, speed: 2, dy: 2, icon: new Image() };
+    const bullets = [];
+    const explosions = [];
+    let score = 0;
 
-    const sounds = {
-      shoot: new Audio('https://example.com/shoot.mp3'),
-      hit: new Audio('https://example.com/hit.mp3'),
-    };
+    // Load icons
+    player.icon.src = 'image/astronot.png'; // Replace with your player icon URL
+    enemy.icon.src = 'image/alien.png'; // Replace with your enemy icon URL
 
-    let keys = {};
+    // Background image
+    const backgroundImage = new Image();
+    backgroundImage.src = 'image/solar.jpg'; // Replace with your own background URL
 
-    function drawTriangle(x, y, size, color) {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(x, y - size / 2);
-      ctx.lineTo(x + size, y);
-      ctx.lineTo(x, y + size / 2);
-      ctx.closePath();
-      ctx.fill();
-    }
+    // Load sounds
+    const shootSound = new Audio('audio/gun.mp3'); // Replace with your shoot sound URL
+    const hitSound = new Audio('audio/shot.mp3'); // Replace with your hit sound URL
 
-    function drawRectangle(x, y, width, height, color) {
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, width, height);
-    }
-
-    function drawPolygon(x, y, radius, sides, color) {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      for (let i = 0; i < sides; i++) {
-        const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
-        const px = x + radius * Math.cos(angle);
-        const py = y + radius * Math.sin(angle);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+    // Event listeners
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp') player.dy = -player.speed;
+      if (e.key === 'ArrowDown') player.dy = player.speed;
+      if (e.key === ' ') {
+        bullets.push({ x: player.x + player.width, y: player.y + player.height / 2, radius: 5, color: 'red', speed: 8 });
+        shootSound.currentTime = 0;
+        shootSound.play();
       }
-      ctx.closePath();
-      ctx.fill();
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') player.dy = 0;
+    });
+
+    function drawBackground() {
+      ctx.drawImage(backgroundImage, 0, 0, canvasWidth, canvasHeight);
     }
 
-    function drawBullet(x, y, radius, color) {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
+    function drawPlayer() {
+      ctx.drawImage(player.icon, player.x, player.y, player.width, player.height);
+    }
+
+    function drawEnemy() {
+      ctx.drawImage(enemy.icon, enemy.x - enemy.size / 2, enemy.y - enemy.size / 2, enemy.size, enemy.size);
+    }
+
+    function drawBullets() {
+      bullets.forEach((bullet, index) => {
+        bullet.x += bullet.speed;
+        if (bullet.x > canvasWidth) bullets.splice(index, 1);
+        ctx.fillStyle = bullet.color;
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawExplosions() {
+      explosions.forEach((explosion, index) => {
+        explosion.frame++;
+        if (explosion.frame > 10) {
+          explosions.splice(index, 1);
+          return;
+        }
+        ctx.fillStyle = `rgba(255, 165, 0, ${1 - explosion.frame / 10})`;
+        ctx.beginPath();
+        ctx.arc(explosion.x, explosion.y, explosion.frame * 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function checkCollision() {
+      bullets.forEach((bullet, index) => {
+        const dx = bullet.x - enemy.x;
+        const dy = bullet.y - enemy.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < bullet.radius + enemy.size / 2) {
+          bullets.splice(index, 1);
+          explosions.push({ x: enemy.x, y: enemy.y, frame: 0 });
+          hitSound.currentTime = 0;
+          hitSound.play();
+          score++;
+        }
+      });
     }
 
     function drawScore() {
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = 'black';
       ctx.font = '20px Arial';
-      ctx.fillText(`Skor: ${gameState.skor}`, 10, 30);
+      ctx.fillText(`Score: ${score}`, 20, 30);
+    }
+
+    function updatePlayer() {
+      player.y += player.dy;
+      if (player.y < 0) player.y = 0;
+      if (player.y + player.height > canvasHeight) player.y = canvasHeight - player.height;
+    }
+
+    function updateEnemy() {
+      enemy.y += enemy.dy;
+      if (enemy.y - enemy.size / 2 < 0 || enemy.y + enemy.size / 2 > canvasHeight) {
+        enemy.dy *= -1;
+      }
     }
 
     function update() {
-      // Gerakan pemain
-      if (keys['ArrowUp']) gameState.player.y -= 5;
-      if (keys['ArrowDown']) gameState.player.y += 5;
-      gameState.player.y = Math.max(0, Math.min(canvas.height, gameState.player.y));
-
-      // Gerakan musuh
-      gameState.enemy.y += gameState.enemy.speed * gameState.enemy.direction;
-      if (gameState.enemy.y <= 0 || gameState.enemy.y >= canvas.height) {
-        gameState.enemy.direction *= -1;
-      }
-
-      // Tembakan musuh
-      if (Math.random() < 0.02) {
-        gameState.enemy.bullets.push({
-          x: gameState.enemy.x - 20,
-          y: gameState.enemy.y,
-          radius: 5,
-          color: 'yellow',
-          speed: -5,
-        });
-      }
-
-      // Gerakan peluru pemain
-      gameState.bullets.forEach((bullet, index) => {
-        bullet.x += bullet.speed;
-
-        // Periksa tabrakan dengan musuh
-        if (
-          bullet.x > gameState.enemy.x - gameState.enemy.width / 2 &&
-          bullet.x < gameState.enemy.x + gameState.enemy.width / 2 &&
-          bullet.y > gameState.enemy.y - gameState.enemy.height / 2 &&
-          bullet.y < gameState.enemy.y + gameState.enemy.height / 2
-        ) {
-          sounds.hit.play();
-          gameState.skor++;
-          gameState.bullets.splice(index, 1);
-        }
-
-        // Hapus peluru jika keluar layar
-        if (bullet.x > canvas.width) {
-          gameState.bullets.splice(index, 1);
-        }
-      });
-
-      // Gerakan peluru musuh
-      gameState.enemy.bullets.forEach((bullet, index) => {
-        bullet.x += bullet.speed;
-
-        // Periksa tabrakan dengan pemain
-        if (
-          bullet.x < gameState.player.x + gameState.player.width &&
-          bullet.y > gameState.player.y - gameState.player.height / 2 &&
-          bullet.y < gameState.player.y + gameState.player.height / 2
-        ) {
-          alert('Kena tembak!');
-          gameState.enemy.bullets.splice(index, 1);
-        }
-
-        // Hapus peluru jika keluar layar
-        if (bullet.x < 0) {
-          gameState.enemy.bullets.splice(index, 1);
-        }
-      });
-    }
-
-    function render() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Gambar pemain
-      if (gameState.player.character === 'triangle') {
-        drawTriangle(gameState.player.x, gameState.player.y, gameState.player.width, gameState.player.color);
-      } else {
-        drawRectangle(gameState.player.x, gameState.player.y - 10, 20, 20, gameState.player.color);
-      }
-
-      // Gambar musuh
-      drawPolygon(gameState.enemy.x, gameState.enemy.y, gameState.enemy.width / 2, 5, gameState.enemy.color);
-
-      // Gambar peluru pemain
-      gameState.bullets.forEach(bullet => drawBullet(bullet.x, bullet.y, bullet.radius, bullet.color));
-
-      // Gambar peluru musuh
-      gameState.enemy.bullets.forEach(bullet => drawBullet(bullet.x, bullet.y, bullet.radius, bullet.color));
-
-      // Gambar penghalang
-      gameState.obstacles.forEach(obstacle => drawRectangle(obstacle.x, obstacle.y, obstacle.width, obstacle.height, obstacle.color));
-
-      // Gambar skor
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+      drawBackground();
+      updatePlayer();
+      updateEnemy();
+      drawPlayer();
+      drawEnemy();
+      drawBullets();
+      drawExplosions();
+      checkCollision();
       drawScore();
+      requestAnimationFrame(update);
     }
 
-    function gameLoop() {
+    backgroundImage.onload = () => {
       update();
-      render();
-      requestAnimationFrame(gameLoop);
-    }
-
-    window.addEventListener('keydown', (e) => {
-      keys[e.key] = true;
-      if (e.key === ' ') {
-        sounds.shoot.play();
-        gameState.bullets.push({
-          x: gameState.player.x + 20,
-          y: gameState.player.y,
-          radius: 5,
-          color: 'red',
-          speed: 8,
-        });
-      }
-      if (e.key === 'c') {
-        gameState.player.character = gameState.player.character === 'triangle' ? 'rectangle' : 'triangle';
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      keys[e.key] = false;
-    });
-
-    gameLoop();
+    };
   </script>
 </body>
 </html>
